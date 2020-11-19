@@ -2,6 +2,7 @@
 
 // include database and object files
 require_once ('../../config/dbHandler.php');
+require_once('../../jwt/jwt.php');
 
 
 class UserManager{
@@ -31,6 +32,47 @@ class UserManager{
 		else {
 			
 			return false;
+		}
+		
+	
+	}
+	
+	function loginCheck() {
+		
+		
+		$createQuery = "select * from users where email = '$this->email' and password = '$this->password'";
+		
+		$execQuery = pg_query(DBCONNECT, $createQuery);
+		
+	if (pg_num_rows($execQuery) == 1) {
+			
+	$issuedat_claim = time(); // issued at
+    $notbefore_claim = $issuedat_claim + 10; //not before in seconds
+    $expire_claim = $issuedat_claim + 60; // expire time in seconds
+	
+	$userData = pg_fetch_assoc($execQuery);
+	
+	   $token = array(
+                "exp" => $expire_claim,
+                "data" => array(
+                "name" => $userData['name'],
+                "email" => $userData['email'],
+                "designation" => $userData['designation'],
+                "organization" => $userData['organization']
+        ));
+		
+     $serverKey = '5f2b5cdbe5194f10b3241568fe4e2b24';
+   
+     $token = JWT::encode($token, $serverKey);
+		   
+		   
+		   return array("status" => true, "message" => "Successful login.", "token" => $token, "exp" => $expire_claim);
+		}
+		
+		
+		else {
+			
+			return array("status" => false);
 		}
 		
 	
