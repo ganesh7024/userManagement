@@ -1,5 +1,5 @@
 CREATE TABLE "layers" (
-  "id" uid PRIMARY KEY,
+  "id" uuid PRIMARY KEY,
   "layer_name" varchar,
   "table_name" varchar
 );
