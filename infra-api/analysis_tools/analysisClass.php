@@ -7,6 +7,8 @@ class analysisManager
 
  public $u_file;
  public $layer_name;
+ public $snap_tolerance;
+ public $max_pipe_length;
    
  function uploadData()
     {
@@ -67,6 +69,46 @@ class analysisManager
 
     }
 	
+    function buildModel() {
+	   
+	  $tableName =  $this->uploadData();
+	  $tableName =  $tableName['u_name'];
+	  $analysisTable = "build_model_$tableName";
+	  $topo_name = "topo_$tableName";
+	  $snap_tolerance = $this->snap_tolerance;
+	  $max_pipe_length = $this->max_pipe_length;
+	  $output_pipes = "pipes_$tableName";
+	  $output_junctions = "junctions_$tableName";
+	  
+
+	  $create_analytics_table = pg_query(DBCONNECT, "create table $analysisTable as SELECT ST_Line_Substring(the_geom, $max_pipe_length*n/length, CASE WHEN $max_pipe_length*(n+1) < length THEN $max_pipe_length*(n+1)/length ELSE 1 END) As geom FROM (SELECT ST_LineMerge((ST_Dump(ST_LineMerge(ST_Node(st_union($tableName.geom))))).geom) AS the_geom, ST_Length((ST_Dump(ST_LineMerge(ST_Node(st_union($tableName.geom))))).geom) As length FROM $tableName ) AS t CROSS JOIN generate_series(0,10000) AS n WHERE n*$max_pipe_length/length < 1;");
+	  
+	  $create_topo = pg_query(DBCONNECT, "SELECT topology.CreateTopology('$topo_name', 32643)");
+	  $create_topo_geom = pg_query(DBCONNECT, "SELECT topology.AddTopoGeometryColumn('$topo_name', 'public', '$analysisTable', 'topo_geom', 'LINESTRING')");
+	  
+	  $setting_tolerance = pg_query(DBCONNECT, "UPDATE $analysisTable SET topo_geom = topology.toTopoGeom(geom, '$topo_name', 1, $snap_tolerance)");
+	  
+	  $creating_output_pipes = pg_query(DBCONNECT, "create table public.$output_pipes as select * from $topo_name.edge_data");
+	  $creating_output_junctions = pg_query(DBCONNECT, "create table public.$output_junctions as select * from $topo_name.node");
+	  $adding_length_column = pg_query(DBCONNECT, "ALTER TABLE $output_pipes ADD COLUMN length VARCHAR,ADD COLUMN graph_type VARCHAR");
+	  $adding_length_column = pg_query(DBCONNECT, "ALTER TABLE $output_junctions ADD COLUMN degree VARCHAR");
+	  $update_length_column = pg_query(DBCONNECT, "update $output_pipes set length = st_length(geom)");
+	  $update_mesh = pg_query(DBCONNECT, "update $output_pipes set graph_type = 'MESHED'");
+	  $update_mesh = pg_query(DBCONNECT, "update $output_pipes set graph_type = 'BRANCHED' from ( select a.edge_id from $output_pipes as a, $output_pipes as b where St_touches(ST_EndPoint(a.geom),b.geom) group by a.edge_id HAVING COUNT(*) < 2 ) as subquery where $output_pipes.edge_id = subquery.edge_id");
+	  $update_degree = pg_query(DBCONNECT, "update $output_junctions set degree = subquery.count from ( select distinct(a.node_id), count(*) from $output_junctions as a ,$output_pipes as b where st_intersects(a.geom, b.geom) group by a.node_id) as subquery where $output_junctions.node_id = subquery.node_id");
+	  
+	  
+	  $delete_topo_query = pg_query(DBCONNECT, "SELECT topology.DropTopology('$topo_name')");
+	  $delete_topo_query = pg_query(DBCONNECT, "Drop table $analysisTable");
+	  
+	    return array(
+			    "status" => true,
+                "upload_message" => "pipes and junctions created sucessfull",
+                "pipes_data" => $output_pipes,
+                "junctions_data" => $output_junctions
+            );
+    } 
+	
 	function unzip_file($file, $destination){
 		$zip = new ZipArchive() ;
 		if ($zip->open($file) !== TRUE) {
@@ -92,6 +134,8 @@ class analysisManager
 
         return sprintf('%04X%04X-%04X-%04X-%04X-%04X%04X%04X', mt_rand(0, 65535) , mt_rand(0, 65535) , mt_rand(0, 65535) , mt_rand(16384, 20479) , mt_rand(32768, 49151) , mt_rand(0, 65535) , mt_rand(0, 65535) , mt_rand(0, 65535));
     }
+	
+
 
     
 }
