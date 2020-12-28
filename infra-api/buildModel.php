@@ -7,6 +7,7 @@ require_once ('analysis_tools/analysisClass.php');
 $layer_name = $_POST['layer_name'];
 $snap_tolerance = $_POST['snap_tolerance'];
 $max_pipe_length = $_POST['max_pipe_length'];
+$projection = $_POST['projection'];
 
 if (file_exists($_FILES['shp_import']['tmp_name']) || is_uploaded_file($_FILES['shp_import']['tmp_name']))
 {
@@ -14,6 +15,7 @@ if (file_exists($_FILES['shp_import']['tmp_name']) || is_uploaded_file($_FILES['
 	$data->layer_name =  $layer_name;
 	$data->snap_tolerance =  $snap_tolerance;
 	$data->max_pipe_length =  $max_pipe_length;
+	$data->projection =  $projection;
 	$data->u_file = $_FILES['shp_import'];
 	
 	$messsege = $data->buildModel();
